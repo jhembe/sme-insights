@@ -38,4 +38,4 @@ jobs:
 
     - name: Collect static files
       run: |
-        python manage.py collectstatic --noinput  # Collect static files (useful for production deploy)
+        python manage.py collectstatic --noinput  # Collect static files (useful for production deploy))
