@@ -28,6 +28,7 @@ function AddExpenseModal({
 }) {
   const qc = useQueryClient();
   const { currency } = useBusinessStore();
+  const { t } = useTranslation();
 
   const [form, setForm] = useState<CreateExpensePayload>({
     description: '',

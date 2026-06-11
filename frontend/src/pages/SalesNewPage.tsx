@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { salesApi, CreateSaleItemInput, PaymentMethod, PAYMENT_METHOD_LABELS } from '../api/sales';
@@ -279,7 +278,6 @@ export function SalesNewPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { businessId, currency, taxRate } = useBusinessStore();
-  const { t } = useTranslation();
   const online = useOnlineStatus();
 
   const { data: products = [] } = useQuery({
