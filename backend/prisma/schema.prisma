@@ -1,0 +1,321 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── PLATFORM ────────────────────────────────────────────────
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  avatarUrl         String?
+  preferredLanguage String   @default("en")
+  isVerified             Boolean   @default(false)
+  passwordResetToken          String?
+  passwordResetExpiresAt      DateTime?
+  emailVerificationToken      String?
+  emailVerificationExpiresAt  DateTime?
+  createdAt                   DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  memberships      OrganizationMember[]
+  sessions         UserSession[]
+  sales            Sale[]
+  stockAdjustments StockAdjustment[]
+  auditEvents      AuditEvent[]
+}
+
+model UserSession {
+  id          String   @id @default(cuid())
+  userId      String
+  hashedToken String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  logoUrl         String?
+  country         String   @default("TZ")
+  defaultLanguage String   @default("en")
+  planId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  plan       Plan?                @relation(fields: [planId], references: [id])
+  members    OrganizationMember[]
+  businesses BusinessProfile[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role         @default(STAFF)
+  status         MemberStatus @default(ACTIVE)
+  invitedEmail   String?
+  joinedAt       DateTime     @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum MemberStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+// ─── BUSINESS ────────────────────────────────────────────────
+
+model BusinessProfile {
+  id                 String        @id @default(cuid())
+  organizationId     String
+  name               String
+  description        String?
+  type               BusinessType?
+  phone              String?
+  email              String?
+  address            String?
+  registrationNumber String?
+  logoUrl            String?
+  currency           String        @default("TZS")
+  taxRate            Decimal       @default(0) @db.Decimal(5, 2)
+  accentColor        String?       @default("green")
+  isActive           Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products          Product[]
+  productCategories ProductCategory[]
+  customers         Customer[]
+  sales             Sale[]
+  expenses          Expense[]
+  expenseCategories ExpenseCategory[]
+  stockAdjustments  StockAdjustment[]
+  auditEvents       AuditEvent[]
+}
+
+enum BusinessType {
+  RETAIL
+  FOOD_AND_BEVERAGE
+  SERVICES
+  WHOLESALE
+  MANUFACTURING
+  AGRICULTURE
+  TRANSPORT
+  OTHER
+}
+
+// ─── PRODUCTS & INVENTORY ────────────────────────────────────
+
+model ProductCategory {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  color      String?
+  createdAt  DateTime @default(now())
+
+  business BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([businessId, name])
+}
+
+model Product {
+  id                String   @id @default(cuid())
+  businessId        String
+  categoryId        String?
+  name              String
+  sku               String?
+  description       String?
+  unitPrice         Decimal  @db.Decimal(12, 2)
+  unit              String?
+  stockQuantity     Decimal? @db.Decimal(12, 3)
+  lowStockThreshold Decimal? @db.Decimal(12, 3)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  business         BusinessProfile   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category         ProductCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  saleItems        SaleItem[]
+  stockAdjustments StockAdjustment[]
+}
+
+model StockAdjustment {
+  id          String              @id @default(cuid())
+  productId   String
+  businessId  String
+  type        StockAdjustmentType
+  quantity    Decimal             @db.Decimal(12, 3)
+  note        String?
+  createdById String
+  createdAt   DateTime            @default(now())
+
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  business  BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy User            @relation(fields: [createdById], references: [id])
+}
+
+enum StockAdjustmentType {
+  RESTOCK
+  ADJUSTMENT
+  DAMAGE
+  RETURN
+}
+
+// ─── CUSTOMERS ───────────────────────────────────────────────
+
+model Customer {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  phone      String?
+  email      String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sales    Sale[]
+}
+
+// ─── SALES ───────────────────────────────────────────────────
+
+model Sale {
+  id            String        @id @default(cuid())
+  businessId    String
+  customerId    String?
+  createdById   String
+  date          DateTime
+  taxAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  totalAmount   Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod
+  status        SaleStatus    @default(COMPLETED)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  business  BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer  Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdBy User            @relation(fields: [createdById], references: [id])
+  items     SaleItem[]
+}
+
+model SaleItem {
+  id          String   @id @default(cuid())
+  saleId      String
+  productId   String?
+  productName String
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  quantity    Decimal  @db.Decimal(12, 3)
+  discount    Decimal  @default(0) @db.Decimal(12, 2)
+  lineTotal   Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  TIGOPESA
+  AIRTELMONEY
+  CARD
+  BANK_TRANSFER
+  CREDIT
+  OTHER
+}
+
+enum SaleStatus {
+  COMPLETED
+  PENDING
+  CANCELLED
+  REFUNDED
+}
+
+// ─── EXPENSES ────────────────────────────────────────────────
+
+model ExpenseCategory {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  color      String?
+  createdAt  DateTime @default(now())
+
+  business BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  businessId  String
+  categoryId  String?
+  description String
+  amount      Decimal  @db.Decimal(12, 2)
+  date        DateTime
+  receiptUrl  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business BusinessProfile  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+}
+
+// ─── PLANS (inactive until M6) ───────────────────────────────
+
+model Plan {
+  id                String   @id @default(cuid())
+  name              String
+  maxBusinesses     Int      @default(1)
+  maxUsers          Int      @default(3)
+  dataRetentionDays Int      @default(90)
+  hasExports        Boolean  @default(false)
+  hasApiAccess      Boolean  @default(false)
+  priceMonthlyUsd   Decimal  @default(0) @db.Decimal(8, 2)
+  createdAt         DateTime @default(now())
+
+  organizations Organization[]
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  businessId  String
+  userId      String
+  action      String
+  entityType  String
+  entityId    String
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  business BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt(sort: Desc)])
+}

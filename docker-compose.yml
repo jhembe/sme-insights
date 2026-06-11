@@ -1,0 +1,20 @@
+name: sme-insights
+
+services:
+  sme_api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sme_api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    networks:
+      - edge_net
+      - data_net
+
+networks:
+  edge_net:
+    external: true
+  data_net:
+    external: true
